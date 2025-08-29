@@ -10,27 +10,18 @@ import (
 )
 
 func (c *FilebinClient) UploadFile(config types.UploadConfig) error {
-	// Open the file
-	file, err := os.Open(config.FilePath)
+	fileData, err := os.ReadFile(config.FilePath)
 	if err != nil {
-		return fmt.Errorf("failed to open file: %w", err)
-	}
-	defer file.Close()
-
-	// Get file info for size
-	fileInfo, err := file.Stat()
-	if err != nil {
-		return fmt.Errorf("failed to get file info: %w", err)
+		return fmt.Errorf("failed to read file: %w", err)
 	}
 
 	url := fmt.Sprintf("/%s/%s", config.BinID, config.Filename)
 
 	req := c.client.R().
-		SetFileReader("file", config.Filename, file).
+		SetBody(fileData).
 		SetHeader("Content-Type", "application/octet-stream").
-		SetHeader("Content-Length", fmt.Sprintf("%d", fileInfo.Size()))
+		SetHeader("Accept", "application/json")
 
-	// Add custom client ID if provided
 	if config.ClientID != "" {
 		req.SetHeader("cid", config.ClientID)
 	}
@@ -44,7 +35,6 @@ func (c *FilebinClient) UploadFile(config types.UploadConfig) error {
 	case 201:
 		return nil
 	case 400:
-		// Check for specific error messages in the response body
 		responseBody := string(resp.Body())
 		if strings.Contains(responseBody, "The bin is too short") {
 			return &errors.APIError{
